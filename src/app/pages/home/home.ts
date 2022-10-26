@@ -16,26 +16,15 @@ import {
   IonContent
 } from '@ionic/angular';
 
-// Rx
-import { Observable } from 'rxjs';
-import { withLatestFrom } from 'rxjs/operators';
-
-// Third parties
-import { Store, Select, Actions, ofActionSuccessful } from '@ngxs/store';
-
 // Project
-import {
-  FetchMovies,
-  DeleteMovie,
-  AddMovie,
-  EditMovie
-} from '@store/actions/movies.actions';
 import { MovieModalComponent } from '@modals/movie-modal/movie.modal';
 import { FavoritesMoviesModalComponent } from '@modals/favorites-movies-modal/favorites.movies.modal';
 import { FilterMoviePopoverComponent } from '@popovers/filter-movie.popover';
 import { Movie } from '@models/movie.model';
 import { IziToastService } from '@services/izi-toast/izi-toast.service';
 import { AsyncEvent } from '@models/custom-event.model';
+import { MovieState } from '@store/state/movies.state';
+import { first, tap } from 'rxjs';
 
 @Component({
   selector: 'app-page-home',
@@ -50,7 +39,7 @@ export class HomeComponent implements OnInit {
   content: IonContent;
 
   // Reads the name of the store from the store class.
-  @Select((state) => state.catalog.movies) movies$: Observable<Movie[]>;
+  movies$ = this.movieState.movies$.pipe(tap((m) => console.log('movies', m)));
 
   currentYear = new Date().getFullYear();
   start: number;
@@ -60,10 +49,9 @@ export class HomeComponent implements OnInit {
   iconView = 'apps';
 
   constructor(
-    private store: Store,
+    private movieState: MovieState,
     private router: Router,
     private modalCtrl: ModalController,
-    private actions$: Actions,
     private popoverCtrl: PopoverController,
     private iziToast: IziToastService
   ) {
@@ -79,58 +67,46 @@ export class HomeComponent implements OnInit {
       console.log('state', state);
     }
 
-    this.actions$.pipe(ofActionSuccessful(AddMovie)).subscribe({
-      next: () => {
-        this.modalCtrl.dismiss();
-        this.iziToast.success('Add movie', 'Movie added successfully.');
-      },
-      error: (err) =>
-        console.log(
-          'HomePage::ngOnInit ofActionSuccessful(AddMovie) | method called -> received error' +
-            err
-        )
+    this.movieState.addMovieRequest.success$.subscribe(() => {
+      this.modalCtrl.dismiss();
+      this.iziToast.success('Add movie', 'Movie added successfully.');
     });
+    this.movieState.addMovieRequest.error$.subscribe((err) =>
+      console.log(
+        'HomePage::ngOnInit ofActionSuccessful(AddMovie) | method called -> received error' +
+          err
+      )
+    );
+    this.movieState.updateMovieRequest.success$.subscribe(() => {
+      this.modalCtrl.dismiss();
+      this.iziToast.success('Edit movie', 'Movie updated successfully.');
+    });
+    this.movieState.updateMovieRequest.error$.subscribe((err) =>
+      console.log(
+        'HomePage::ngOnInit ofActionSuccessful(EditMovie) | method called -> received error' +
+          err
+      )
+    );
 
-    this.actions$.pipe(ofActionSuccessful(EditMovie)).subscribe({
-      next: () => {
-        this.modalCtrl.dismiss();
-        this.iziToast.success('Edit movie', 'Movie updated successfully.');
-      },
-      error: (err) =>
-        console.log(
-          'HomePage::ngOnInit ofActionSuccessful(EditMovie) | method called -> received error' +
-            err
-        )
+    this.movieState.deleteMovieRequest.success$.subscribe(() => {
+      this.iziToast.success('Delete movie', 'Movie deleted successfully.');
     });
-
-    this.actions$.pipe(ofActionSuccessful(DeleteMovie)).subscribe({
-      next: () => {
-        this.iziToast.success('Delete movie', 'Movie deleted successfully.');
-      },
-      error: (err) =>
-        console.log(
-          'HomePage::ngOnInit ofActionSuccessful(DeleteMovie) | method called -> received error' +
-            err
-        )
-    });
+    this.movieState.deleteMovieRequest.error$.subscribe((err) =>
+      console.log(
+        'HomePage::ngOnInit ofActionSuccessful(DeleteMovie) | method called -> received error' +
+          err
+      )
+    );
   }
 
   fetchMovies(start: number, end: number) {
     console.log('HomePage::fetchMovies | method called', start, end);
-    this.store
-      .dispatch(new FetchMovies({ start: start, end: end }))
-      .pipe(withLatestFrom(this.movies$))
-      .subscribe({
-        next: ([movies]) => {
-          setTimeout(() => {
-            this.showSkeleton = false;
-          }, 2000);
-        },
-        error: (err) =>
-          console.log(
-            'HomePage::fetchMovies() | method called -> received error' + err
-          )
-      });
+    this.movieState.scrollRangeChange$.next({ start, end });
+    this.movieState.moviesRequest.success$.subscribe(() => {
+      setTimeout(() => {
+        this.showSkeleton = false;
+      }, 2000);
+    });
   }
 
   viewMovieDetails(movie: Movie) {
@@ -172,7 +148,7 @@ export class HomeComponent implements OnInit {
   }
 
   deleteMovie(movie: Movie) {
-    this.store.dispatch(new DeleteMovie(movie));
+    this.movieState.deleteMovie$.next(movie);
   }
 
   doInfinite(event: Event) {

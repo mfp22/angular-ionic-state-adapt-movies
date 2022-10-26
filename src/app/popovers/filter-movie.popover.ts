@@ -6,10 +6,9 @@ import {
   NgZone
 } from '@angular/core';
 import { PopoverController } from '@ionic/angular';
-import { Store } from '@ngxs/store';
 import { Observable, Subscription } from 'rxjs';
 import { FormBuilder, FormGroup, FormControl } from '@angular/forms';
-import { FilterMovies, SaveFilterMovies } from '@store/actions/movies.actions';
+import { MovieState } from '@store/state/movies.state';
 
 @Component({
   selector: 'app-filter-movie-popover',
@@ -57,7 +56,7 @@ export class FilterMoviePopoverComponent implements OnInit, OnDestroy {
 
   constructor(
     private popoverCtrl: PopoverController,
-    private store: Store,
+    private movieState: MovieState,
     private zone: NgZone,
     private formBuilder: FormBuilder
   ) {
@@ -73,7 +72,7 @@ export class FilterMoviePopoverComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    this.filter$ = this.store.select((state) => state.catalog.filter);
+    this.filter$ = this.movieState.filter$;
     this.filterSubscription = this.filter$.subscribe((filter) => {
       this.filterForm.setValue(filter);
       if (filter.genre === '') {
@@ -88,10 +87,7 @@ export class FilterMoviePopoverComponent implements OnInit, OnDestroy {
 
   filterMovies() {
     console.log(this.filterForm.value);
-    this.store.dispatch([
-      new FilterMovies(this.filterForm.value),
-      new SaveFilterMovies(this.filterForm.value)
-    ]);
+    this.movieState.filterChange$.next(this.filterForm.value);
     this.popoverCtrl.dismiss();
   }
 
@@ -101,10 +97,7 @@ export class FilterMoviePopoverComponent implements OnInit, OnDestroy {
       years: { lower: 1900, upper: new Date().getFullYear() },
       genre: ''
     });
-    this.store.dispatch([
-      new FilterMovies(this.filterForm.value),
-      new SaveFilterMovies(this.filterForm.value)
-    ]);
+    this.movieState.filterChange$.next(this.filterForm.value);
     this.popoverCtrl.dismiss();
   }
 

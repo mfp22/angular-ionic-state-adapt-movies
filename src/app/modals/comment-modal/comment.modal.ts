@@ -7,9 +7,7 @@ import {
   FormControl,
   Validators
 } from '@angular/forms';
-
-import { EditMovie } from '@store/actions/movies.actions';
-import { Store } from '@ngxs/store';
+import { MovieState } from '@store/state/movies.state';
 
 @Component({
   selector: 'app-comment-modal',
@@ -28,7 +26,7 @@ export class CommentModalComponent implements OnInit {
     private modalCtrl: ModalController,
     private formBuilder: FormBuilder,
     private navParams: NavParams,
-    private store: Store
+    private movieState: MovieState
   ) {
     this.createForm();
   }
@@ -77,7 +75,7 @@ export class CommentModalComponent implements OnInit {
 
     comments.push(this.commentForm.value.comment);
     movieToUpdate.comments = comments;
-    this.store.dispatch(new EditMovie(movieToUpdate));
+    this.movieState.updateMovie$.next(movieToUpdate);
   }
 
   onRatingChange(event) {

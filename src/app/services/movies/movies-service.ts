@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { timeout, retryWhen, delay } from 'rxjs/operators';
+import { timeout, retryWhen, delay, map } from 'rxjs/operators';
 import { v4 as uuid } from 'uuid';
 import { Movie } from '@models/movie.model';
 import { environment } from '@environments/environment';
@@ -88,7 +88,8 @@ export class MoviesService {
         .delete<Movie>(encodeURI(this.URL_BASE + `movies/${movie['id']}`))
         .pipe(
           retryWhen((error) => error.pipe(delay(500))),
-          timeout(5000)
+          timeout(5000),
+          map(() => movie)
         )
     );
   }

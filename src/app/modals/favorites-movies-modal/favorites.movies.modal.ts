@@ -1,14 +1,10 @@
 import { Component, ViewEncapsulation, OnInit } from '@angular/core';
 import { ModalController, NavParams, AlertController } from '@ionic/angular';
 
-import { Store } from '@ngxs/store';
 import { Movie } from '@models/movie.model';
 
-import {
-  DeleteFavoriteMovie,
-  DeleteAllFavoritesMovies
-} from '@store/actions/movies.actions';
 import { Router } from '@angular/router';
+import { MovieState } from '@store/state/movies.state';
 
 @Component({
   selector: 'app-favorites-movies-modal',
@@ -22,9 +18,9 @@ export class FavoritesMoviesModalComponent implements OnInit {
   };
 
   constructor(
+    private movieState: MovieState,
     private modalCtrl: ModalController,
     private navParams: NavParams,
-    private store: Store,
     private router: Router,
     private alertCtrl: AlertController
   ) {}
@@ -49,7 +45,7 @@ export class FavoritesMoviesModalComponent implements OnInit {
     console.log(
       'FavoritesMoviesModalComponent::deleteFavoriteMovie() | method called'
     );
-    this.store.dispatch(new DeleteFavoriteMovie(movie));
+    this.movieState.store.removeFavorites(movie);
     this.modal.favoritesMovies = this.modal.favoritesMovies.filter(
       (m) => m.title !== movie.title
     );
@@ -60,7 +56,7 @@ export class FavoritesMoviesModalComponent implements OnInit {
     this.modal.favoritesMovies = [];
     const state = JSON.parse(localStorage.getItem('@@STATE'));
     state.catalog.favorites = [];
-    this.store.dispatch(new DeleteAllFavoritesMovies());
+    this.movieState.store.resetFavorites(undefined);
   }
 
   async presentAlertConfirm() {

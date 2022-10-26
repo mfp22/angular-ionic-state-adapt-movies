@@ -1,7 +1,6 @@
 import { Component } from '@angular/core';
 
-import { Store } from '@ngxs/store';
-import { FilterMovies } from '@store/actions/movies.actions';
+import { MovieState } from '@store/state/movies.state';
 
 @Component({
   selector: 'app-genre-carousel',
@@ -20,7 +19,7 @@ export class GenreCarouselComponent {
   };
   selected: Number = -1;
 
-  constructor(private store: Store) {
+  constructor(private movieState: MovieState) {
     this.genres = [
       { text: 'Science fiction', src: 'assets/movies-genres/image1.png' },
       { text: 'Westerns', src: 'assets/movies-genres/image2.png' },
@@ -41,6 +40,7 @@ export class GenreCarouselComponent {
     console.log('GenreCarouselComponent::selectGenre() | method called', genre);
     this.selected = index;
     this.filters.genre = genre.text;
-    this.store.dispatch([new FilterMovies(this.filters)]);
+
+    this.movieState.filterChange$.next(this.filters);
   }
 }

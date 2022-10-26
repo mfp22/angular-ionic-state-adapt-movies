@@ -10,14 +10,12 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 // Third parties
-import { Store } from '@ngxs/store';
 import { Capacitor } from '@capacitor/core';
 import { YoutubePlayer } from 'capacitor-youtube-player';
 
 /* Project */
 
 // State
-import { LikeMovie, FavoriteMovie } from '@store/actions/movies.actions';
 import { MovieState } from '@store/state/movies.state';
 
 // Models | Interfaces
@@ -45,7 +43,7 @@ export class DetailComponent {
   movie: Movie;
 
   constructor(
-    private store: Store,
+    private movieState: MovieState,
     private youtubeApiService: YoutubeApiService,
     private modalCtrl: ModalController,
     private activatedRoute: ActivatedRoute,
@@ -58,9 +56,9 @@ export class DetailComponent {
   }
 
   getMovieDetails(id: string) {
-    this.selectedMovie = this.store
-      .select(MovieState.movieById)
-      .pipe(map((filterFn) => filterFn(id)));
+    this.selectedMovie = this.movieState.movieById$.pipe(
+      map((filterFn) => filterFn(id))
+    );
     this.selectedMovie.subscribe((movie) => {
       this.movie = movie;
     });
@@ -141,7 +139,8 @@ export class DetailComponent {
       this.movie.likes = 0;
     }
     this.movie.likes += 1;
-    this.store.dispatch(new LikeMovie(this.movie));
+
+    this.movieState.likeMovie$.next(this.movie);
   }
 
   onClickComment() {
@@ -170,7 +169,8 @@ export class DetailComponent {
       if (typeof favorites !== 'undefined') {
         const condition = (item) => item.title === this.movie.title;
         if (!favorites.some(condition)) {
-          this.store.dispatch(new FavoriteMovie(this.movie)).subscribe(() => {
+          this.movieState.favoriteMovie$.next(this.movie);
+          this.movieState.updateMovieRequest.success$.subscribe(() => {
             this.iziToast.success('Favorite movie', 'Favorite Movie added.');
           });
         } else {

@@ -6,19 +6,15 @@ import {
   AfterViewInit
 } from '@angular/core';
 import { ModalController, NavParams } from '@ionic/angular';
-import { Store } from '@ngxs/store';
-import { UpdateFormValue, UpdateFormStatus } from '@ngxs/form-plugin';
-import { AddMovie, EditMovie } from '@store/actions/movies.actions';
-import { Movie } from '@models/movie.model';
 import {
   FormBuilder,
   FormGroup,
   FormControl,
   Validators
 } from '@angular/forms';
-import { Observable } from 'rxjs';
 import { FormErrorHandlerService } from '@services/form-error-hanlder/form-error-handler.service';
 import { MovieForm } from '@models/form.model';
+import { MovieState } from '@store/state/movies.state';
 
 @Component({
   selector: 'app-movie-modal',
@@ -36,7 +32,7 @@ export class MovieModalComponent implements OnInit, AfterViewInit {
   errorsForm: any = {};
 
   // Reads the name of the store from the store class.
-  movieForm$: Observable<Movie[]>;
+  movieForm$ = this.movieState.movieForm$;
 
   genres = [
     { id: 1, name: 'Action', image: 'assets/movies-genres/action.png' },
@@ -61,10 +57,10 @@ export class MovieModalComponent implements OnInit, AfterViewInit {
   ];
 
   constructor(
+    private movieState: MovieState,
     private formBuilder: FormBuilder,
     private modalCtrl: ModalController,
     public navParams: NavParams,
-    private store: Store,
     private renderer: Renderer2,
     private formErrorHandler: FormErrorHandlerService
   ) {
@@ -90,7 +86,6 @@ export class MovieModalComponent implements OnInit, AfterViewInit {
       poster: new FormControl('', { nonNullable: true })
     });
 
-    this.movieForm$ = this.store.select((state) => state.catalog.movieForm);
     this.movieForm$.subscribe((data) => {
       if (data['model'] !== null && data['status'] === 'PENDING') {
         // Check if the user has added information about a movie but has not inserted it.
@@ -115,42 +110,25 @@ export class MovieModalComponent implements OnInit, AfterViewInit {
     // Using the injected ModalController this page
     // can "dismiss" itself and pass back data.
     if (this.navParams.data.option === 'add') {
-      this.store.dispatch([
-        new UpdateFormValue({
-          value: data,
-          path: 'catalog.movieForm'
-        }),
-        new UpdateFormStatus({
-          status: 'PENDING',
-          path: 'catalog.movieForm'
-        })
-      ]);
+      this.movieState.store.submitMovieForm(data);
     }
     this.modalCtrl.dismiss(data);
   }
 
   movieFormSubmit() {
     if (this.navParams.data.option === 'add') {
-      this.store
-        .dispatch(new AddMovie(this.movieForm.value))
-        .subscribe(() => this.clearMovieForm());
+      this.movieState.addMovie$.next(this.movieForm.value);
+      this.movieState.addMovieRequest.success$.subscribe(() =>
+        this.clearMovieForm()
+      );
     } else if (this.navParams.data.option === 'edit') {
-      this.store.dispatch(new EditMovie(this.movieForm.value));
+      this.movieState.updateMovie$.next(this.movieForm.value);
     }
   }
 
   clearMovieForm() {
     this.movieForm.reset();
-    this.store.dispatch([
-      new UpdateFormValue({
-        value: <Movie>{},
-        path: 'catalog.movieForm'
-      }),
-      new UpdateFormStatus({
-        status: '',
-        path: 'catalog.movieForm'
-      })
-    ]);
+    this.movieState.store.resetMovieForm(undefined);
   }
 
   takePicture() {

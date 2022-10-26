@@ -1,146 +1,142 @@
-import { State, Action, StateContext, Selector, NgxsOnInit } from '@ngxs/store';
 import { Movie } from '@models/movie.model';
-import {
-  FetchMovies,
-  AddMovie,
-  EditMovie,
-  DeleteMovie,
-  FilterMovies,
-  SaveFilterMovies,
-  GetMovieTrailer,
-  ClearMovies,
-  LikeMovie,
-  CommentMovie,
-  FavoriteMovie,
-  DeleteFavoriteMovie,
-  DeleteAllFavoritesMovies,
-  ClearState
-} from '@store/actions/movies.actions';
+import { GetMovieTrailer } from '@store/actions/movies.actions';
 
+import { Injectable } from '@angular/core';
+// import { attachAction } from '@ngxs-labs/attach-action';
 import { MoviesService } from '@services/movies/movies-service';
 import { YoutubeApiService } from '@services/youtube-api/youtube-api-service';
-import { Injectable } from '@angular/core';
-import { attachAction } from '@ngxs-labs/attach-action';
-import {
-  addMovie,
-  clearMovies,
-  commentMovie,
-  deleteAllFavoritesMovies,
-  deleteFavoriteMovie,
-  deleteMovie,
-  editMovie,
-  favoriteMovie,
-  fetchMovies,
-  filterMovies,
-  getMovieTrailer,
-  likeMovie,
-  saveFilterMovies
-} from '@store/actions/movies.actions.impl';
+import { adapt } from '@state-adapt/angular';
+import { getHttpSources, Source } from '@state-adapt/rxjs';
+import { getMovieTrailer } from '@store/actions/movies.actions.impl';
+import { catalogAdapter, CatalogStateModel } from '@store/catalog.adapter';
+import { merge, startWith, switchMap } from 'rxjs';
 
-export class MoviesStateModel {
-  movies: Movie[];
+const initialState: CatalogStateModel = {
+  movies: [],
   movieForm: {
-    model: Movie;
-    dirty: boolean;
-    status: string;
-    errors: {};
-  };
+    model: null,
+    dirty: false,
+    status: '',
+    errors: {}
+  },
   filter: {
-    genre: string;
+    genre: 'Action',
     years: {
-      lower: number;
-      upper: number;
-    };
-    rate: number;
-  };
-  favorites: Movie[];
-}
+      lower: 1900,
+      upper: new Date().getFullYear()
+    },
+    rate: 0
+  },
+  favorites: []
+};
 
-@State<MoviesStateModel>({
-  name: 'catalog',
-  defaults: {
-    movies: [],
-    movieForm: {
-      model: null,
-      dirty: false,
-      status: '',
-      errors: {}
-    },
-    filter: {
-      genre: 'Action',
-      years: {
-        lower: 1900,
-        upper: new Date().getFullYear()
-      },
-      rate: 0
-    },
-    favorites: []
-  }
-})
 @Injectable()
-export class MovieState implements NgxsOnInit {
+export class MovieState {
+  scrollRangeChange$ = new Source<{ start: number; end: number }>(
+    'scrollRangeChange$'
+  );
+  moviesRequest = getHttpSources(
+    '[Movies]',
+    this.scrollRangeChange$.pipe(
+      startWith({ payload: { start: 0, end: 20 } }),
+      switchMap(({ payload: { start, end } }) =>
+        this.moviesService.getMovies(start, end)
+      )
+    ),
+    (res) => [!!res, res, 'Error']
+  );
+
+  addMovie$ = new Source<Movie>('addMovie$');
+  addMovieRequest = getHttpSources(
+    '[Add Movie]',
+    this.addMovie$.pipe(
+      switchMap(({ payload }) => {
+        payload.poster =
+          payload.poster === ''
+            ? 'https://in.bmscdn.com/iedb/movies/images/website/poster/large/ela-cheppanu-et00016781-24-03-2017-18-31-40.jpg'
+            : payload.poster;
+
+        return this.moviesService.addMovie(payload);
+      })
+    ),
+    (res) => [!!res, res, 'Error']
+  );
+
+  updateMovie$ = new Source<Movie>('updateMovie$');
+  likeMovie$ = new Source<Movie>('likeMovie$');
+  commentMovie$ = new Source<Movie>('commentMovie$');
+  updateMovieRequest = getHttpSources(
+    '[Update Movie]',
+    merge(this.updateMovie$, this.likeMovie$, this.commentMovie$).pipe(
+      switchMap(({ payload }) => this.moviesService.editMovie(payload))
+    ),
+    (res) => [!!res, [res], 'Error']
+  );
+
+  deleteMovie$ = new Source<Movie>('deleteMovie$');
+  deleteMovieRequest = getHttpSources(
+    '[Delete Movie]',
+    this.deleteMovie$.pipe(
+      switchMap(({ payload }) => this.moviesService.deleteMovie(payload))
+    ),
+    (res) => [!!res, res, 'Error']
+  );
+
+  filterChange$ = new Source<any>('filterChange$');
+
+  filterChangeRequest = getHttpSources(
+    '[Movies]',
+    this.filterChange$.pipe(
+      switchMap(({ payload }) => this.moviesService.filterMovies(payload))
+    ),
+    (res) => [!!res, res, 'Error']
+  );
+
+  clearMovies$ = new Source<void>('clearMovies$');
+  favoriteMovie$ = new Source<Movie>('favoriteMovie$');
+  deleteFavoriteMovie$ = new Source<Movie>('deleteFavoriteMovie$');
+  deleteAllFavoriteMovie$ = new Source<void>('deleteAllFavoriteMovie$');
+
+  store = adapt(['catalog', initialState, catalogAdapter], {
+    receiveMovies: this.moviesRequest.success$,
+    addMovies: this.addMovieRequest.success$,
+    updateMovies: this.updateMovieRequest.success$,
+    removeMovies: this.deleteMovieRequest.success$,
+    setMovies: this.filterChangeRequest.success$,
+    setFilter: this.filterChange$,
+    resetMovies: this.clearMovies$,
+    addFavorites: this.favoriteMovie$,
+    removeFavorites: this.deleteFavoriteMovie$,
+    resetFavorites: this.deleteAllFavoriteMovie$,
+    noop: [
+      this.scrollRangeChange$,
+      this.moviesRequest.error$,
+      this.addMovie$,
+      this.addMovieRequest.error$,
+      this.updateMovie$,
+      this.likeMovie$,
+      this.commentMovie$,
+      this.updateMovieRequest.error$,
+      this.deleteMovie$,
+      this.deleteMovieRequest.error$,
+      this.filterChange$,
+      this.deleteMovieRequest.error$
+    ]
+  });
+
+  movies$ = this.store.movies$;
+  movieById$ = this.store.moviesById$;
+  filter$ = this.store.filter$;
+  movieForm$ = this.store.movieForm$;
+
   constructor(
     private moviesService: MoviesService,
     private youtubeApiService: YoutubeApiService
   ) {
-    attachAction(MovieState, FetchMovies, fetchMovies(moviesService));
-    attachAction(MovieState, AddMovie, addMovie(moviesService));
-    attachAction(MovieState, EditMovie, editMovie(moviesService));
-    attachAction(MovieState, DeleteMovie, deleteMovie(moviesService));
-    attachAction(MovieState, FilterMovies, filterMovies(moviesService));
-    attachAction(MovieState, SaveFilterMovies, saveFilterMovies);
-    attachAction(
-      MovieState,
-      GetMovieTrailer,
-      getMovieTrailer(youtubeApiService)
-    );
-    attachAction(MovieState, ClearMovies, clearMovies);
-    attachAction(MovieState, LikeMovie, likeMovie(moviesService));
-    attachAction(MovieState, CommentMovie, commentMovie(moviesService));
-    attachAction(MovieState, FavoriteMovie, favoriteMovie);
-    attachAction(MovieState, DeleteFavoriteMovie, deleteFavoriteMovie);
-    attachAction(
-      MovieState,
-      DeleteAllFavoritesMovies,
-      deleteAllFavoritesMovies
-    );
-  }
-
-  @Selector()
-  static getMovies(state: MoviesStateModel) {
-    return state.movies;
-  }
-
-  @Selector()
-  static movieById(state: MoviesStateModel) {
-    return (id: string) => {
-      return state.movies.filter((movie) => movie.id === id)[0];
-    };
-  }
-
-  ngxsOnInit(ctx: StateContext<MoviesStateModel>) {
-    ctx.dispatch(new ClearState());
-  }
-
-  @Action(ClearState)
-  clearState({ setState }: StateContext<MoviesStateModel>) {
-    setState({
-      movies: [],
-      movieForm: {
-        model: null,
-        dirty: false,
-        status: '',
-        errors: {}
-      },
-      filter: {
-        genre: 'Action',
-        years: {
-          lower: 1900,
-          upper: new Date().getFullYear()
-        },
-        rate: 0
-      },
-      favorites: []
-    });
+    // attachAction(
+    //   MovieState,
+    //   GetMovieTrailer,
+    //   getMovieTrailer(this.youtubeApiService)
+    // );
   }
 }
